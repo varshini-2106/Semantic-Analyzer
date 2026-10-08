@@ -1,6 +1,7 @@
 import re
 from token_model import Token
 
+
 KEYWORDS = {
     "int": "INT",
     "float": "FLOAT",
@@ -8,6 +9,7 @@ KEYWORDS = {
     "true": "BOOL_LITERAL",
     "false": "BOOL_LITERAL",
 }
+
 
 TOKEN_SPEC = [
     ("NUMBER",      r"\d+(?:\.\d+)?"),
@@ -33,14 +35,24 @@ TOKEN_SPEC = [
     ("MISMATCH",    r"."),
 ]
 
-MASTER_RE = re.compile("|".join(f"(?P<{name}>{pattern})" for name, pattern in TOKEN_SPEC))
+
+MASTER_RE = re.compile(
+    "|".join(
+        f"(?P<{name}>{pattern})"
+        for name, pattern in TOKEN_SPEC
+    )
+)
+
 
 def tokenize(source):
+
     tokens = []
+
     line = 1
     column = 1
 
     for match in MASTER_RE.finditer(source):
+
         kind = match.lastgroup
         value = match.group()
 
@@ -54,15 +66,40 @@ def tokenize(source):
             continue
 
         if kind == "MISMATCH":
-            raise SyntaxError(f"Unexpected character {value!r} at line {line}, column {column}")
+
+            raise SyntaxError(
+                f"Unexpected character {value!r} "
+                f"at line {line}, column {column}"
+            )
 
         if kind == "ID":
             kind = KEYWORDS.get(value, "ID")
-        elif kind == "NUMBER":
-            kind = "FLOAT_LITERAL" if "." in value else "INT_LITERAL"
 
-        tokens.append(Token(kind, value, line, column))
+        elif kind == "NUMBER":
+            kind = (
+                "FLOAT_LITERAL"
+                if "." in value
+                else "INT_LITERAL"
+            )
+
+        tokens.append(
+            Token(
+                kind,
+                value,
+                line,
+                column
+            )
+        )
+
         column += len(value)
 
-    tokens.append(Token("EOF", "", line, column))
+    tokens.append(
+        Token(
+            "EOF",
+            "",
+            line,
+            column
+        )
+    )
+
     return tokens
