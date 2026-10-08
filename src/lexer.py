@@ -1,5 +1,5 @@
 import re
-from token import Token
+from token_model import Token
 
 KEYWORDS = {
     "int": "INT",

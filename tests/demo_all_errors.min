@@ -1,0 +1,18 @@
+int age;
+float salary;
+bool active;
+
+int age;
+
+unknown = 10;
+
+age = 20.5;
+
+{
+    int local;
+    local = 10;
+}
+
+local = 20;
+
+age = active + 5;
