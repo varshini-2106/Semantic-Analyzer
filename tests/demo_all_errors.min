@@ -1,3 +1,4 @@
+
 int age;
 float salary;
 bool active;
@@ -8,11 +9,11 @@ unknown = 10;
 
 age = 20.5;
 
-{
+age = active + 5;
+
+if (10) {
     int local;
-    local = 10;
+    local = 1;
 }
 
 local = 20;
-
-age = active + 5;

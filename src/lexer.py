@@ -1,105 +1,78 @@
-import re
-from token_model import Token
 
+import re
+
+try:
+    from .token_model import Token
+    from .errors import LexerError
+except ImportError:
+    from token_model import Token
+    from errors import LexerError
+
+
+TOKEN_PATTERN = re.compile(
+    r"(?P<SPACE>[ \t\r]+)"
+    r"|(?P<NEWLINE>\n)"
+    r"|(?P<COMMENT>//[^\n]*)"
+    r"|(?P<FLOAT>(?:\d+\.\d+|\d+\.(?!\.)|\.\d+))"
+    r"|(?P<INT>\d+)"
+    r"|(?P<ID>[A-Za-z_][A-Za-z0-9_]*)"
+    r"|(?P<OP>==|!=|<=|>=|&&|\|\||[+\-*/=!<>])"
+    r"|(?P<PUNCT>[{}();])"
+)
 
 KEYWORDS = {
-    "int": "INT",
-    "float": "FLOAT",
-    "bool": "BOOL",
-    "true": "BOOL_LITERAL",
-    "false": "BOOL_LITERAL",
+    "int",
+    "float",
+    "bool",
+    "true",
+    "false",
+    "if",
+    "else",
+    "while",
 }
 
 
-TOKEN_SPEC = [
-    ("NUMBER",      r"\d+(?:\.\d+)?"),
-    ("ID",          r"[A-Za-z_][A-Za-z0-9_]*"),
-    ("EQ",          r"=="),
-    ("NE",          r"!="),
-    ("LE",          r"<="),
-    ("GE",          r">="),
-    ("PLUS",        r"\+"),
-    ("MINUS",       r"-"),
-    ("MUL",         r"\*"),
-    ("DIV",         r"/"),
-    ("ASSIGN",      r"="),
-    ("LT",          r"<"),
-    ("GT",          r">"),
-    ("LPAREN",      r"\("),
-    ("RPAREN",      r"\)"),
-    ("LBRACE",      r"\{"),
-    ("RBRACE",      r"\}"),
-    ("SEMICOLON",   r";"),
-    ("SKIP",        r"[ \t]+"),
-    ("NEWLINE",     r"\n"),
-    ("MISMATCH",    r"."),
-]
+class Lexer:
+    def __init__(self, source):
+        self.source = source
 
+    def tokenize(self):
+        tokens = []
+        index = 0
+        line = 1
+        column = 1
 
-MASTER_RE = re.compile(
-    "|".join(
-        f"(?P<{name}>{pattern})"
-        for name, pattern in TOKEN_SPEC
-    )
-)
+        while index < len(self.source):
+            match = TOKEN_PATTERN.match(self.source, index)
 
+            if match is None:
+                character = self.source[index]
+                raise LexerError(
+                    f"Unexpected character {character!r}.",
+                    line,
+                    column,
+                )
 
-def tokenize(source):
+            kind = match.lastgroup
+            value = match.group()
 
-    tokens = []
+            if kind == "NEWLINE":
+                line += 1
+                column = 1
+            else:
+                if kind not in {"SPACE", "COMMENT"}:
+                    token_type = kind
 
-    line = 1
-    column = 1
+                    if kind == "ID" and value in KEYWORDS:
+                        token_type = value.upper()
 
-    for match in MASTER_RE.finditer(source):
+                    tokens.append(
+                        Token(token_type, value, line, column)
+                    )
 
-        kind = match.lastgroup
-        value = match.group()
+                column += len(value)
 
-        if kind == "NEWLINE":
-            line += 1
-            column = 1
-            continue
+            index = match.end()
 
-        if kind == "SKIP":
-            column += len(value)
-            continue
-
-        if kind == "MISMATCH":
-
-            raise SyntaxError(
-                f"Unexpected character {value!r} "
-                f"at line {line}, column {column}"
-            )
-
-        if kind == "ID":
-            kind = KEYWORDS.get(value, "ID")
-
-        elif kind == "NUMBER":
-            kind = (
-                "FLOAT_LITERAL"
-                if "." in value
-                else "INT_LITERAL"
-            )
-
-        tokens.append(
-            Token(
-                kind,
-                value,
-                line,
-                column
-            )
-        )
-
-        column += len(value)
-
-    tokens.append(
-        Token(
-            "EOF",
-            "",
-            line,
-            column
-        )
-    )
-
-    return tokens
+        tokens.append(Token("EOF", "", line, column))
+        return tokens

@@ -1,3 +1,4 @@
+
 from dataclasses import dataclass
 
 
@@ -6,48 +7,46 @@ class Symbol:
     name: str
     var_type: str
     scope_level: int
+    line: int
+    column: int
 
 
 class SymbolTable:
-
     def __init__(self):
         self.scopes = [{}]
+
+    @property
+    def scope_level(self):
+        return len(self.scopes) - 1
 
     def enter_scope(self):
         self.scopes.append({})
 
     def exit_scope(self):
+        if len(self.scopes) > 1:
+            self.scopes.pop()
 
-        if len(self.scopes) == 1:
-            raise RuntimeError(
-                "Cannot exit global scope"
-            )
+    def declare(self, name, var_type, line=1, column=1):
+        current_scope = self.scopes[-1]
 
-        self.scopes.pop()
-
-    @property
-    def current_scope_level(self):
-        return len(self.scopes) - 1
-
-    def declare(self, name, var_type):
-
-        current = self.scopes[-1]
-
-        if name in current:
+        if name in current_scope:
             return False
 
-        current[name] = Symbol(
+        current_scope[name] = Symbol(
             name=name,
             var_type=var_type,
-            scope_level=self.current_scope_level
+            scope_level=self.scope_level,
+            line=line,
+            column=column,
         )
 
         return True
 
+    def lookup_current(self, name):
+        return self.scopes[-1].get(name)
+
     def lookup(self, name):
-
         for scope in reversed(self.scopes):
-
             if name in scope:
                 return scope[name]
 

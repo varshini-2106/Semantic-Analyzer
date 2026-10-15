@@ -1,263 +1,333 @@
-from ast_nodes import (
-    Block,
-    Declaration,
-    Assignment,
-    BinaryExpression,
-    Literal,
-    Identifier,
-    ParenthesizedExpression
-)
 
-from errors import SemanticError
-from symbol_table import SymbolTable
+try:
+    from .ast_nodes import (
+        Program,
+        Block,
+        Declaration,
+        Assignment,
+        IfStatement,
+        WhileStatement,
+        BinaryExpression,
+        UnaryExpression,
+        Literal,
+        Identifier,
+        ParenthesizedExpression,
+    )
+    from .symbol_table import SymbolTable
+    from .errors import SemanticError
+except ImportError:
+    from ast_nodes import (
+        Program,
+        Block,
+        Declaration,
+        Assignment,
+        IfStatement,
+        WhileStatement,
+        BinaryExpression,
+        UnaryExpression,
+        Literal,
+        Identifier,
+        ParenthesizedExpression,
+    )
+    from symbol_table import SymbolTable
+    from errors import SemanticError
+
+
+NUMERIC_TYPES = {"int", "float"}
 
 
 class SemanticAnalyzer:
-
     def __init__(self):
         self.symbol_table = SymbolTable()
         self.errors = []
 
+    def error(
+        self,
+        category,
+        message,
+        node,
+        expected=None,
+        found=None,
+        rule=None,
+        identifier=None,
+    ):
+        self.errors.append(
+            SemanticError(
+                category=category,
+                message=message,
+                line=node.line,
+                column=node.column,
+                expected=expected,
+                found=found,
+                rule=rule,
+                identifier=identifier,
+            )
+        )
+
     def analyze(self, program):
+        # Reset state so the same analyzer can analyze multiple programs.
+        self.symbol_table = SymbolTable()
         self.errors = []
 
         for statement in program.statements:
-            self.visit(statement)
+            self.visit_statement(statement)
 
         return self.errors
 
-    def visit(self, node):
-
-        if isinstance(node, Block):
-
-            self.symbol_table.enter_scope()
-
-            for statement in node.statements:
-                self.visit(statement)
-
-            self.symbol_table.exit_scope()
-
-        elif isinstance(node, Declaration):
-
-            success = self.symbol_table.declare(
+    def visit_statement(self, node):
+        if isinstance(node, Declaration):
+            declared = self.symbol_table.declare(
                 node.name,
-                node.var_type
+                node.var_type,
+                node.line,
+                node.column,
             )
 
-            if not success:
-
-                self.errors.append(
-                    SemanticError(
-                        category="DUPLICATE_DECLARATION",
-
-                        message=(
-                            f"Variable '{node.name}' is already "
-                            f"declared in the current scope."
-                        ),
-
-                        line=node.line,
-                        column=node.column,
-
-                        details={
-                            "Variable": node.name,
-                            "Type": node.var_type,
-                            "Scope": self.symbol_table.current_scope_level
-                        },
-
-                        rule=(
-                            "An identifier cannot be declared more "
-                            "than once within the same scope."
-                        )
-                    )
+            if not declared:
+                self.error(
+                    "DUPLICATE_DECLARATION",
+                    f"Variable '{node.name}' is already declared "
+                    "in this scope.",
+                    node,
+                    identifier=node.name,
+                    rule="A variable can be declared only once "
+                         "within the same scope.",
                 )
 
         elif isinstance(node, Assignment):
-
             symbol = self.symbol_table.lookup(node.name)
 
+            # Check the right-hand side even if the target is undeclared.
+            expression_type = self.expression_type(node.expression)
+
             if symbol is None:
-
-                self.errors.append(
-                    SemanticError(
-                        category="UNDECLARED_VARIABLE",
-
-                        message=(
-                            f"Variable '{node.name}' is not declared."
-                        ),
-
-                        line=node.line,
-                        column=node.column,
-
-                        details={
-                            "Identifier": node.name,
-                            "Status": (
-                                "No declaration found in the "
-                                "current or enclosing scopes."
-                            )
-                        },
-
-                        rule=(
-                            "Every identifier must be declared "
-                            "before it is used."
-                        )
-                    )
+                self.error(
+                    "UNDECLARED_VARIABLE",
+                    f"Variable '{node.name}' has not been declared.",
+                    node,
+                    identifier=node.name,
+                    rule="A variable must be declared before assignment.",
                 )
 
-                # Still analyze the expression so that
-                # additional errors inside it can be found.
-                self.expression_type(node.expression)
-
-                return
-
-            expression_type = self.expression_type(
-                node.expression
-            )
-
-            if expression_type is not None:
-
-                if not self.assignment_compatible(
+            elif (
+                expression_type is not None
+                and not self.assignable(
                     symbol.var_type,
-                    expression_type
-                ):
+                    expression_type,
+                )
+            ):
+                self.error(
+                    "TYPE_MISMATCH",
+                    f"Cannot assign '{expression_type}' to "
+                    f"'{symbol.var_type}' variable '{node.name}'.",
+                    node,
+                    expected=symbol.var_type,
+                    found=expression_type,
+                    identifier=node.name,
+                    rule="The assigned value must have a compatible type.",
+                )
 
-                    self.errors.append(
-                        SemanticError(
-                            category="TYPE_MISMATCH",
+        elif isinstance(node, Block):
+            self.symbol_table.enter_scope()
 
-                            message=(
-                                f"Cannot assign {expression_type} "
-                                f"to {symbol.var_type} variable "
-                                f"'{node.name}'."
-                            ),
+            try:
+                for statement in node.statements:
+                    self.visit_statement(statement)
+            finally:
+                self.symbol_table.exit_scope()
 
-                            line=node.line,
-                            column=node.column,
+        elif isinstance(node, IfStatement):
+            condition_type = self.expression_type(node.condition)
 
-                            details={
-                                "Variable": node.name,
-                                "Expected type": symbol.var_type,
-                                "Found type": expression_type
-                            },
+            if (
+                condition_type is not None
+                and condition_type != "bool"
+            ):
+                self.error(
+                    "INVALID_CONDITION",
+                    "An if condition must have type 'bool'.",
+                    node.condition,
+                    expected="bool",
+                    found=condition_type,
+                    rule="Conditional expressions must be Boolean.",
+                )
 
-                            rule=(
-                                "An assignment expression must be "
-                                "compatible with the declared "
-                                "variable type."
-                            )
-                        )
-                    )
+            self.visit_statement(node.then_branch)
+
+            if node.else_branch is not None:
+                self.visit_statement(node.else_branch)
+
+        elif isinstance(node, WhileStatement):
+            condition_type = self.expression_type(node.condition)
+
+            if (
+                condition_type is not None
+                and condition_type != "bool"
+            ):
+                self.error(
+                    "INVALID_CONDITION",
+                    "A while condition must have type 'bool'.",
+                    node.condition,
+                    expected="bool",
+                    found=condition_type,
+                    rule="Loop conditions must be Boolean.",
+                )
+
+            self.visit_statement(node.body)
+
+    def assignable(self, target_type, source_type):
+        if target_type == source_type:
+            return True
+
+        # int can be widened to float, but not the reverse.
+        if target_type == "float" and source_type == "int":
+            return True
+
+        return False
 
     def expression_type(self, node):
-
         if isinstance(node, Literal):
-            return node.value_type
+            return node.literal_type
 
         if isinstance(node, Identifier):
-
             symbol = self.symbol_table.lookup(node.name)
 
             if symbol is None:
-
-                self.errors.append(
-                    SemanticError(
-                        category="UNDECLARED_VARIABLE",
-
-                        message=(
-                            f"Variable '{node.name}' is not declared."
-                        ),
-
-                        line=node.line,
-                        column=node.column,
-
-                        details={
-                            "Identifier": node.name,
-                            "Status": (
-                                "No declaration found in the "
-                                "current or enclosing scopes."
-                            )
-                        },
-
-                        rule=(
-                            "Every identifier must be declared "
-                            "before it is used."
-                        )
-                    )
+                self.error(
+                    "UNDECLARED_VARIABLE",
+                    f"Variable '{node.name}' has not been declared.",
+                    node,
+                    identifier=node.name,
+                    rule="An identifier must refer to a declared variable.",
                 )
-
                 return None
 
             return symbol.var_type
 
         if isinstance(node, ParenthesizedExpression):
+            return self.expression_type(node.expression)
 
-            return self.expression_type(
-                node.expression
+        if isinstance(node, UnaryExpression):
+            operand_type = self.expression_type(node.operand)
+
+            if operand_type is None:
+                return None
+
+            if (
+                node.operator == "-"
+                and operand_type in NUMERIC_TYPES
+            ):
+                return operand_type
+
+            if node.operator == "!" and operand_type == "bool":
+                return "bool"
+
+            expected = (
+                "int or float"
+                if node.operator == "-"
+                else "bool"
             )
+
+            self.error(
+                "INVALID_EXPRESSION",
+                f"Unary operator '{node.operator}' cannot be applied "
+                f"to type '{operand_type}'.",
+                node,
+                expected=expected,
+                found=operand_type,
+                rule="Unary operators require compatible operand types.",
+            )
+            return None
 
         if isinstance(node, BinaryExpression):
+            left_type = self.expression_type(node.left)
+            right_type = self.expression_type(node.right)
 
-            left_type = self.expression_type(
-                node.left
-            )
-
-            right_type = self.expression_type(
-                node.right
-            )
-
+            # Avoid cascading operator errors when an operand
+            # already contains an undeclared identifier or type error.
             if left_type is None or right_type is None:
                 return None
 
-            if left_type == "bool" or right_type == "bool":
+            operator = node.operator
 
-                self.errors.append(
-                    SemanticError(
-                        category="INVALID_EXPRESSION",
+            if operator in {"+", "-", "*", "/"}:
+                if (
+                    left_type not in NUMERIC_TYPES
+                    or right_type not in NUMERIC_TYPES
+                ):
+                    self.error(
+                        "INVALID_EXPRESSION",
+                        f"Arithmetic operator '{operator}' requires "
+                        "numeric operands.",
+                        node,
+                        expected="int or float",
+                        found=f"{left_type}, {right_type}",
+                        rule="Arithmetic operators accept numeric types.",
+                    )
+                    return None
 
-                        message=(
-                            f"Operator '{node.operator}' cannot "
-                            f"be applied to boolean values."
-                        ),
+                if operator == "/":
+                    return "float"
 
-                        line=node.line,
-                        column=node.column,
+                if "float" in {left_type, right_type}:
+                    return "float"
 
-                        details={
-                            "Operator": node.operator,
-                            "Left type": left_type,
-                            "Right type": right_type
-                        },
+                return "int"
 
-                        rule=(
-                            "Arithmetic operators require "
-                            "numeric operands."
-                        )
+            if operator in {"<", ">", "<=", ">="}:
+                if (
+                    left_type in NUMERIC_TYPES
+                    and right_type in NUMERIC_TYPES
+                ):
+                    return "bool"
+
+                self.error(
+                    "INVALID_EXPRESSION",
+                    f"Comparison operator '{operator}' requires "
+                    "numeric operands.",
+                    node,
+                    expected="int or float",
+                    found=f"{left_type}, {right_type}",
+                    rule="Ordered comparisons require numeric types.",
+                )
+                return None
+
+            if operator in {"==", "!="}:
+                compatible = (
+                    left_type == right_type
+                    or (
+                        left_type in NUMERIC_TYPES
+                        and right_type in NUMERIC_TYPES
                     )
                 )
 
+                if compatible:
+                    return "bool"
+
+                self.error(
+                    "INVALID_EXPRESSION",
+                    f"Cannot compare '{left_type}' and '{right_type}' "
+                    f"using '{operator}'.",
+                    node,
+                    expected=left_type,
+                    found=right_type,
+                    rule="Equality operands must have compatible types.",
+                )
                 return None
 
-            if left_type == "float" or right_type == "float":
-                return "float"
+            if operator in {"&&", "||"}:
+                if left_type == "bool" and right_type == "bool":
+                    return "bool"
 
-            return "int"
+                self.error(
+                    "INVALID_EXPRESSION",
+                    f"Logical operator '{operator}' requires "
+                    "Boolean operands.",
+                    node,
+                    expected="bool",
+                    found=f"{left_type}, {right_type}",
+                    rule="Logical operators accept Boolean values.",
+                )
+                return None
 
         return None
-
-    @staticmethod
-    def assignment_compatible(
-        target_type,
-        expression_type
-    ):
-
-        # Exact matches are valid.
-        if target_type == expression_type:
-            return True
-
-        # Safe widening conversion: int -> float.
-        if (
-            target_type == "float"
-            and expression_type == "int"
-        ):
-            return True
-
-        return False

@@ -1,86 +1,131 @@
-import sys
 
-from lexer import tokenize
-from parser import Parser
-from semantic_analyzer import SemanticAnalyzer
+import argparse
+import sys
+from pathlib import Path
+
+try:
+    from .lexer import Lexer
+    from .parser import Parser
+    from .semantic_analyzer import SemanticAnalyzer
+    from .errors import LexerError, ParserError
+except ImportError:
+    from lexer import Lexer
+    from parser import Parser
+    from semantic_analyzer import SemanticAnalyzer
+    from errors import LexerError, ParserError
+
+
+DEFAULT_SOURCE = """
+// MiniLang demonstration
+int age;
+float salary;
+bool eligible;
+
+age = 21;
+salary = 45000;
+eligible = age >= 18;
+
+if (eligible) {
+    int score;
+    score = 95;
+} else {
+    int score;
+    score = 50;
+}
+
+while (eligible) {
+    eligible = false;
+}
+"""
 
 
 def analyze_source(source):
-
-    tokens = tokenize(source)
-
-    tree = Parser(tokens).parse()
-
+    tokens = Lexer(source).tokenize()
+    program = Parser(tokens).parse()
     analyzer = SemanticAnalyzer()
-
-    errors = analyzer.analyze(tree)
+    errors = analyzer.analyze(program)
 
     return errors
 
 
 def main():
+    cli = argparse.ArgumentParser(
+        description="Semantic Analyzer for MiniLang"
+    )
 
-    if len(sys.argv) > 1:
+    cli.add_argument(
+        "file",
+        nargs="?",
+        help="Path to a MiniLang source file",
+    )
 
-        with open(
-            sys.argv[1],
-            "r",
-            encoding="utf-8"
-        ) as file:
+    cli.add_argument(
+        "--stdin",
+        action="store_true",
+        help="Read source code from standard input",
+    )
 
-            source = file.read()
+    cli.add_argument(
+        "--tokens",
+        action="store_true",
+        help="Display lexer tokens instead of semantic results",
+    )
 
-    else:
+    args = cli.parse_args()
 
-        source = """int x;
-float y;
-x = 10;
-y = x + 5.5;
-"""
+    if args.stdin and args.file:
+        cli.error("Provide either a file or --stdin, not both.")
 
     try:
+        if args.stdin:
+            source = sys.stdin.read()
+        elif args.file:
+            source = Path(args.file).read_text(encoding="utf-8")
+        else:
+            source = DEFAULT_SOURCE
 
-        errors = analyze_source(source)
+        tokens = Lexer(source).tokenize()
 
-    except SyntaxError as error:
+        if args.tokens:
+            for token in tokens:
+                print(token)
+            return
 
-        print("\n=== SYNTAX ERROR ===")
-        print(error)
-        return
+        program = Parser(tokens).parse()
+        analyzer = SemanticAnalyzer()
+        errors = analyzer.analyze(program)
 
-    print("\n========================================")
-    print("       SEMANTIC ANALYZER")
-    print("========================================")
-
-    if errors:
-
-        print(
-            f"\nSemantic analysis completed with "
-            f"{len(errors)} error(s).\n"
-        )
-
-        for index, error in enumerate(
-            errors,
-            start=1
-        ):
-
+        if errors:
             print(
-                f"---------- Error {index} ----------"
+                f"Semantic analysis completed with "
+                f"{len(errors)} error(s):\n"
             )
 
-            print(error)
+            for index, error in enumerate(errors, start=1):
+                print(f"{index}. {error}\n")
 
-            print()
+            sys.exit(1)
 
-    else:
+        print("Semantic analysis successful.")
+        print("No semantic errors found.")
 
+    except LexerError as exc:
         print(
-            "\nSemantic analysis successful."
+            f"[LEXICAL ERROR] Line {exc.line}, "
+            f"Column {exc.column}: {exc}"
         )
+        sys.exit(2)
 
+    except ParserError as exc:
         print(
-            "No semantic errors found."
+            f"[SYNTAX ERROR] Line {exc.line}, "
+            f"Column {exc.column}: {exc}"
         )
+        sys.exit(2)
+
+    except OSError as exc:
+        print(f"[FILE ERROR] {exc}")
+        sys.exit(2)
 
 
 if __name__ == "__main__":

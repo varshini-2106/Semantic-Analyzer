@@ -1,0 +1,11 @@
+
+int age;
+bool active;
+
+int age;
+
+unknown = 10;
+
+age = 20.5;
+
+age = active + 5;

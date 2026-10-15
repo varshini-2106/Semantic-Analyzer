@@ -1,4 +1,8 @@
-int x;
-float y;
-x = 10;
-y = x + 5.5;
+
+int age;
+float salary;
+bool active;
+
+age = 21;
+salary = 45000;
+active = true;

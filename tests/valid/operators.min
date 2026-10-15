@@ -1,0 +1,8 @@
+
+int x;
+float amount;
+bool result;
+
+x = 10 + 2 * 3;
+amount = (x + 5) / 2;
+result = x >= 10 && !(x == 0);

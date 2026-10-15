@@ -1,0 +1,10 @@
+
+if (10) {
+    int score;
+    score = 95;
+}
+
+while (5) {
+    int count;
+    count = 1;
+}

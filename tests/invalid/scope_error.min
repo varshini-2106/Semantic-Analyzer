@@ -1,4 +1,7 @@
+
 {
-    int y;
+    int local;
+    local = 10;
 }
-y = 20;
+
+local = 20;

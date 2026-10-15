@@ -1,0 +1,18 @@
+
+int age;
+bool eligible;
+
+age = 20;
+eligible = age >= 18;
+
+if (eligible) {
+    int score;
+    score = 95;
+} else {
+    int score;
+    score = 50;
+}
+
+while (eligible) {
+    eligible = false;
+}

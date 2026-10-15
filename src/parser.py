@@ -1,13 +1,37 @@
-from ast_nodes import (
-    Program,
-    Block,
-    Declaration,
-    Assignment,
-    BinaryExpression,
-    Literal,
-    Identifier,
-    ParenthesizedExpression
-)
+
+try:
+    from .ast_nodes import (
+        Program,
+        Block,
+        Declaration,
+        Assignment,
+        IfStatement,
+        WhileStatement,
+        BinaryExpression,
+        UnaryExpression,
+        Literal,
+        Identifier,
+        ParenthesizedExpression,
+    )
+    from .errors import ParserError
+except ImportError:
+    from ast_nodes import (
+        Program,
+        Block,
+        Declaration,
+        Assignment,
+        IfStatement,
+        WhileStatement,
+        BinaryExpression,
+        UnaryExpression,
+        Literal,
+        Identifier,
+        ParenthesizedExpression,
+    )
+    from errors import ParserError
+
+
+TYPE_TOKENS = {"INT", "FLOAT", "BOOL"}
 
 
 class Parser:
@@ -15,21 +39,47 @@ class Parser:
         self.tokens = tokens
         self.pos = 0
 
+    @property
     def current(self):
         return self.tokens[self.pos]
 
     def advance(self):
-        token = self.current()
-        self.pos += 1
+        token = self.current
+
+        if token.type != "EOF":
+            self.pos += 1
+
         return token
 
-    def expect(self, token_type):
-        token = self.current()
+    def match(self, *types):
+        if self.current.type in types:
+            return self.advance()
 
-        if token.type != token_type:
-            raise SyntaxError(
-                f"Expected {token_type}, got {token.type} "
-                f"at line {token.line}, column {token.column}"
+        return None
+
+    def expect(self, token_type, message=None):
+        if self.current.type != token_type:
+            token = self.current
+            raise ParserError(
+                message
+                or f"Expected {token_type}, found "
+                   f"{token.value or token.type}.",
+                token.line,
+                token.column,
+            )
+
+        return self.advance()
+
+    def expect_punctuation(self, value, message=None):
+        if (
+            self.current.type != "PUNCT"
+            or self.current.value != value
+        ):
+            token = self.current
+            raise ParserError(
+                message or f"Expected '{value}'.",
+                token.line,
+                token.column,
             )
 
         return self.advance()
@@ -37,166 +87,394 @@ class Parser:
     def parse(self):
         statements = []
 
-        while self.current().type != "EOF":
+        while self.current.type != "EOF":
             statements.append(self.statement())
 
-        return Program(statements)
+        return Program(statements=statements)
 
     def statement(self):
-        if self.current().type in ("INT", "FLOAT", "BOOL"):
+        if self.current.type in TYPE_TOKENS:
             return self.declaration()
 
-        if self.current().type == "ID":
-            return self.assignment()
-
-        if self.current().type == "LBRACE":
+        if self.current.type == "PUNCT" and self.current.value == "{":
             return self.block()
 
-        token = self.current()
+        if self.current.type == "ID":
+            return self.assignment()
 
-        raise SyntaxError(
-            f"Unexpected token {token.value!r} at "
-            f"line {token.line}, column {token.column}"
+        if self.current.type == "IF":
+            return self.if_statement()
+
+        if self.current.type == "WHILE":
+            return self.while_statement()
+
+        token = self.current
+        raise ParserError(
+            f"Unexpected token {token.value or token.type} "
+            "at start of statement.",
+            token.line,
+            token.column,
         )
 
     def declaration(self):
         type_token = self.advance()
 
-        name_token = self.expect("ID")
+        name = self.expect(
+            "ID",
+            "Expected an identifier after the type.",
+        )
 
-        self.expect("SEMICOLON")
+        self.expect_punctuation(
+            ";",
+            "Expected ';' after declaration.",
+        )
 
         return Declaration(
-            var_type=type_token.value,
-            name=name_token.value,
             line=type_token.line,
-            column=type_token.column
+            column=type_token.column,
+            var_type=type_token.value,
+            name=name.value,
         )
 
     def assignment(self):
-        name_token = self.expect("ID")
+        name = self.advance()
 
-        self.expect("ASSIGN")
+        if self.current.type != "OP" or self.current.value != "=":
+            token = self.current
+            raise ParserError(
+                "Expected '=' in assignment.",
+                token.line,
+                token.column,
+            )
 
+        self.advance()
         expression = self.expression()
 
-        self.expect("SEMICOLON")
+        self.expect_punctuation(
+            ";",
+            "Expected ';' after assignment.",
+        )
 
         return Assignment(
-            name=name_token.value,
+            line=name.line,
+            column=name.column,
+            name=name.value,
             expression=expression,
-            line=name_token.line,
-            column=name_token.column
         )
 
     def block(self):
-        opening_brace = self.expect("LBRACE")
+        start = self.expect_punctuation(
+            "{",
+            "Expected '{' to start block.",
+        )
 
         statements = []
 
-        while self.current().type not in ("RBRACE", "EOF"):
+        while not (
+            self.current.type == "PUNCT"
+            and self.current.value == "}"
+        ):
+            if self.current.type == "EOF":
+                token = self.current
+                raise ParserError(
+                    "Unclosed block; expected '}'.",
+                    token.line,
+                    token.column,
+                )
+
             statements.append(self.statement())
 
-        self.expect("RBRACE")
+        self.advance()
 
         return Block(
+            line=start.line,
+            column=start.column,
             statements=statements,
-            line=opening_brace.line,
-            column=opening_brace.column
         )
 
+    def if_statement(self):
+        start = self.advance()
+
+        self.expect_punctuation(
+            "(",
+            "Expected '(' after 'if'.",
+        )
+
+        condition = self.expression()
+
+        self.expect_punctuation(
+            ")",
+            "Expected ')' after if condition.",
+        )
+
+        if not (
+            self.current.type == "PUNCT"
+            and self.current.value == "{"
+        ):
+            token = self.current
+            raise ParserError(
+                "Expected a block after the if condition.",
+                token.line,
+                token.column,
+            )
+
+        then_branch = self.block()
+        else_branch = None
+
+        if self.match("ELSE"):
+            if not (
+                self.current.type == "PUNCT"
+                and self.current.value == "{"
+            ):
+                token = self.current
+                raise ParserError(
+                    "Expected a block after 'else'.",
+                    token.line,
+                    token.column,
+                )
+
+            else_branch = self.block()
+
+        return IfStatement(
+            line=start.line,
+            column=start.column,
+            condition=condition,
+            then_branch=then_branch,
+            else_branch=else_branch,
+        )
+
+    def while_statement(self):
+        start = self.advance()
+
+        self.expect_punctuation(
+            "(",
+            "Expected '(' after 'while'.",
+        )
+
+        condition = self.expression()
+
+        self.expect_punctuation(
+            ")",
+            "Expected ')' after while condition.",
+        )
+
+        if not (
+            self.current.type == "PUNCT"
+            and self.current.value == "{"
+        ):
+            token = self.current
+            raise ParserError(
+                "Expected a block after the while condition.",
+                token.line,
+                token.column,
+            )
+
+        body = self.block()
+
+        return WhileStatement(
+            line=start.line,
+            column=start.column,
+            condition=condition,
+            body=body,
+        )
+
+    # Precedence from lowest to highest:
+    # ||, &&, == !=, < > <= >=, + -, * /, unary, primary
+
     def expression(self):
-        node = self.term()
+        return self.logical_or()
 
-        while self.current().type in ("PLUS", "MINUS"):
-            operator_token = self.advance()
+    def logical_or(self):
+        node = self.logical_and()
 
-            right = self.term()
+        while self.current.type == "OP" and self.current.value == "||":
+            operator = self.advance()
+            right = self.logical_and()
 
             node = BinaryExpression(
+                line=operator.line,
+                column=operator.column,
                 left=node,
-                operator=operator_token.value,
+                operator=operator.value,
                 right=right,
-                line=operator_token.line,
-                column=operator_token.column
             )
 
         return node
 
-    def term(self):
-        node = self.factor()
+    def logical_and(self):
+        node = self.equality()
 
-        while self.current().type in ("MUL", "DIV"):
-            operator_token = self.advance()
-
-            right = self.factor()
+        while self.current.type == "OP" and self.current.value == "&&":
+            operator = self.advance()
+            right = self.equality()
 
             node = BinaryExpression(
+                line=operator.line,
+                column=operator.column,
                 left=node,
-                operator=operator_token.value,
+                operator=operator.value,
                 right=right,
-                line=operator_token.line,
-                column=operator_token.column
             )
 
         return node
 
-    def factor(self):
-        token = self.current()
+    def equality(self):
+        node = self.relational()
 
-        if token.type == "INT_LITERAL":
-            self.advance()
+        while (
+            self.current.type == "OP"
+            and self.current.value in {"==", "!="}
+        ):
+            operator = self.advance()
+            right = self.relational()
 
+            node = BinaryExpression(
+                line=operator.line,
+                column=operator.column,
+                left=node,
+                operator=operator.value,
+                right=right,
+            )
+
+        return node
+
+    def relational(self):
+        node = self.additive()
+
+        while (
+            self.current.type == "OP"
+            and self.current.value in {"<", ">", "<=", ">="}
+        ):
+            operator = self.advance()
+            right = self.additive()
+
+            node = BinaryExpression(
+                line=operator.line,
+                column=operator.column,
+                left=node,
+                operator=operator.value,
+                right=right,
+            )
+
+        return node
+
+    def additive(self):
+        node = self.multiplicative()
+
+        while (
+            self.current.type == "OP"
+            and self.current.value in {"+", "-"}
+        ):
+            operator = self.advance()
+            right = self.multiplicative()
+
+            node = BinaryExpression(
+                line=operator.line,
+                column=operator.column,
+                left=node,
+                operator=operator.value,
+                right=right,
+            )
+
+        return node
+
+    def multiplicative(self):
+        node = self.unary()
+
+        while (
+            self.current.type == "OP"
+            and self.current.value in {"*", "/"}
+        ):
+            operator = self.advance()
+            right = self.unary()
+
+            node = BinaryExpression(
+                line=operator.line,
+                column=operator.column,
+                left=node,
+                operator=operator.value,
+                right=right,
+            )
+
+        return node
+
+    def unary(self):
+        if (
+            self.current.type == "OP"
+            and self.current.value in {"-", "!"}
+        ):
+            operator = self.advance()
+            operand = self.unary()
+
+            return UnaryExpression(
+                line=operator.line,
+                column=operator.column,
+                operator=operator.value,
+                operand=operand,
+            )
+
+        return self.primary()
+
+    def primary(self):
+        token = self.current
+
+        if self.match("INT"):
             return Literal(
+                line=token.line,
+                column=token.column,
                 value=int(token.value),
-                value_type="int",
-                line=token.line,
-                column=token.column
+                literal_type="int",
             )
 
-        if token.type == "FLOAT_LITERAL":
-            self.advance()
-
+        if self.match("FLOAT"):
             return Literal(
+                line=token.line,
+                column=token.column,
                 value=float(token.value),
-                value_type="float",
-                line=token.line,
-                column=token.column
+                literal_type="float",
             )
 
-        if token.type == "BOOL_LITERAL":
-            self.advance()
-
+        if self.match("TRUE"):
             return Literal(
-                value=(token.value == "true"),
-                value_type="bool",
                 line=token.line,
-                column=token.column
+                column=token.column,
+                value=True,
+                literal_type="bool",
             )
 
-        if token.type == "ID":
-            self.advance()
+        if self.match("FALSE"):
+            return Literal(
+                line=token.line,
+                column=token.column,
+                value=False,
+                literal_type="bool",
+            )
 
+        if self.match("ID"):
             return Identifier(
-                name=token.value,
                 line=token.line,
-                column=token.column
+                column=token.column,
+                name=token.value,
             )
 
-        if token.type == "LPAREN":
-            opening_paren = self.advance()
+        if token.type == "PUNCT" and token.value == "(":
+            self.advance()
+            expression = self.expression()
 
-            expr = self.expression()
-
-            self.expect("RPAREN")
+            self.expect_punctuation(
+                ")",
+                "Expected ')' after expression.",
+            )
 
             return ParenthesizedExpression(
-                expression=expr,
-                line=opening_paren.line,
-                column=opening_paren.column
+                line=token.line,
+                column=token.column,
+                expression=expression,
             )
 
-        raise SyntaxError(
-            f"Invalid expression at line {token.line}, "
-            f"column {token.column}"
+        raise ParserError(
+            f"Expected an expression, found "
+            f"{token.value or token.type}.",
+            token.line,
+            token.column,
         )
