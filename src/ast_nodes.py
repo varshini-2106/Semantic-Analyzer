@@ -1,73 +1,82 @@
-
 from dataclasses import dataclass, field
-from typing import Any, List
 
 
 @dataclass
-class Node:
-    line: int = 1
-    column: int = 1
+class Program:
+    statements: list = field(default_factory=list)
 
 
 @dataclass
-class Program(Node):
-    statements: List[Any] = field(default_factory=list)
+class Block:
+    statements: list = field(default_factory=list)
 
 
 @dataclass
-class Block(Node):
-    statements: List[Any] = field(default_factory=list)
+class Declaration:
+    var_type: str
+    name: str
+    initializer: object = None
+    line: int = 0
+    column: int = 0
 
 
 @dataclass
-class Declaration(Node):
-    var_type: str = "int"
-    name: str = ""
+class Assignment:
+    name: str
+    expression: object
+    line: int = 0
+    column: int = 0
 
 
 @dataclass
-class Assignment(Node):
-    name: str = ""
-    expression: Any = None
+class IfStatement:
+    condition: object
+    then_branch: object
+    else_branch: object = None
+    line: int = 0
+    column: int = 0
 
 
 @dataclass
-class IfStatement(Node):
-    condition: Any = None
-    then_branch: Any = None
-    else_branch: Any = None
+class WhileStatement:
+    condition: object
+    body: object
+    line: int = 0
+    column: int = 0
 
 
 @dataclass
-class WhileStatement(Node):
-    condition: Any = None
-    body: Any = None
+class BinaryExpression:
+    left: object
+    operator: str
+    right: object
+    line: int = 0
+    column: int = 0
 
 
 @dataclass
-class BinaryExpression(Node):
-    left: Any = None
-    operator: str = ""
-    right: Any = None
+class UnaryExpression:
+    operator: str
+    operand: object
+    line: int = 0
+    column: int = 0
 
 
 @dataclass
-class UnaryExpression(Node):
-    operator: str = ""
-    operand: Any = None
+class Literal:
+    value: object
+    literal_type: str
+    line: int = 0
+    column: int = 0
 
 
 @dataclass
-class Literal(Node):
-    value: Any = None
-    literal_type: str = "int"
+class Identifier:
+    name: str
+    line: int = 0
+    column: int = 0
 
 
 @dataclass
-class Identifier(Node):
-    name: str = ""
-
-
-@dataclass
-class ParenthesizedExpression(Node):
-    expression: Any = None
+class ParenthesizedExpression:
+    expression: object

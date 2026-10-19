@@ -1,132 +1,121 @@
-
 import argparse
+import json
 import sys
-from pathlib import Path
+from dataclasses import fields, is_dataclass
 
-try:
-    from .lexer import Lexer
-    from .parser import Parser
-    from .semantic_analyzer import SemanticAnalyzer
-    from .errors import LexerError, ParserError
-except ImportError:
-    from lexer import Lexer
-    from parser import Parser
-    from semantic_analyzer import SemanticAnalyzer
-    from errors import LexerError, ParserError
+from .lexer import Lexer
+from .parser import Parser
+from .semantic_analyzer import SemanticAnalyzer
+from .errors import LexerError, ParserError
 
 
-DEFAULT_SOURCE = """
-// MiniLang demonstration
-int age;
-float salary;
-bool eligible;
+DEMO_PROGRAM = """
+int age = 20;
+float height = 5.8;
+bool eligible = true;
+string name = "MiniLang";
+char grade = 'A';
 
-age = 21;
-salary = 45000;
-eligible = age >= 18;
-
-if (eligible) {
-    int score;
-    score = 95;
-} else {
-    int score;
-    score = 50;
-}
-
-while (eligible) {
-    eligible = false;
+if (eligible && age >= 18) {
+    string message = "Hello, " + name;
+    grade = 'B';
 }
 """
 
 
-def analyze_source(source):
-    tokens = Lexer(source).tokenize()
-    program = Parser(tokens).parse()
-    analyzer = SemanticAnalyzer()
-    errors = analyzer.analyze(program)
+def to_dict(value):
+    if is_dataclass(value):
+        return {
+            "node": type(value).__name__,
+            **{
+                field.name: to_dict(getattr(value, field.name))
+                for field in fields(value)
+            }
+        }
 
-    return errors
+    if isinstance(value, list):
+        return [to_dict(item) for item in value]
+
+    return value
 
 
 def main():
-    cli = argparse.ArgumentParser(
-        description="Semantic Analyzer for MiniLang"
+    argument_parser = argparse.ArgumentParser(
+        description="MiniLang educational semantic analyzer"
+    )
+    argument_parser.add_argument(
+        "file", nargs="?", help="Source file to analyze"
+    )
+    argument_parser.add_argument(
+        "--tokens", action="store_true",
+        help="Print tokens"
+    )
+    argument_parser.add_argument(
+        "--ast", action="store_true",
+        help="Print the abstract syntax tree"
+    )
+    argument_parser.add_argument(
+        "--symbols", action="store_true",
+        help="Print declared symbols"
     )
 
-    cli.add_argument(
-        "file",
-        nargs="?",
-        help="Path to a MiniLang source file",
-    )
-
-    cli.add_argument(
-        "--stdin",
-        action="store_true",
-        help="Read source code from standard input",
-    )
-
-    cli.add_argument(
-        "--tokens",
-        action="store_true",
-        help="Display lexer tokens instead of semantic results",
-    )
-
-    args = cli.parse_args()
-
-    if args.stdin and args.file:
-        cli.error("Provide either a file or --stdin, not both.")
+    args = argument_parser.parse_args()
 
     try:
-        if args.stdin:
+        if args.file:
+            with open(args.file, encoding="utf-8") as source_file:
+                source = source_file.read()
+        elif not sys.stdin.isatty():
             source = sys.stdin.read()
-        elif args.file:
-            source = Path(args.file).read_text(encoding="utf-8")
         else:
-            source = DEFAULT_SOURCE
+            source = DEMO_PROGRAM
 
         tokens = Lexer(source).tokenize()
 
         if args.tokens:
             for token in tokens:
                 print(token)
-            return
 
         program = Parser(tokens).parse()
+
+        if args.ast:
+            print(json.dumps(to_dict(program), indent=2))
+
         analyzer = SemanticAnalyzer()
         errors = analyzer.analyze(program)
 
+        if args.symbols:
+            print(analyzer.symbol_table.format_table())
+
         if errors:
-            print(
-                f"Semantic analysis completed with "
-                f"{len(errors)} error(s):\n"
-            )
+            print("\nSemantic errors:")
+            for error in errors:
+                print(error)
+            return 1
 
-            for index, error in enumerate(errors, start=1):
-                print(f"{index}. {error}\n")
+        print("Analysis completed successfully.")
+        return 0
 
-            sys.exit(1)
-
-        print("Semantic analysis successful.")
-        print("No semantic errors found.")
-
-    except LexerError as exc:
+    except LexerError as error:
         print(
-            f"[LEXICAL ERROR] Line {exc.line}, "
-            f"Column {exc.column}: {exc}"
+            f"[Lexical Error] Line {error.line}, "
+            f"Column {error.column}: {error}",
+            file=sys.stderr
         )
-        sys.exit(2)
+        return 1
 
-    except ParserError as exc:
+    except ParserError as error:
         print(
-            f"[SYNTAX ERROR] Line {exc.line}, "
-            f"Column {exc.column}: {exc}"
+            f"[Syntax Error] Line {error.line}, "
+            f"Column {error.column}: {error}",
+            file=sys.stderr
         )
-        sys.exit(2)
+        return 1
 
-    except OSError as exc:
-        print(f"[FILE ERROR] {exc}")
-        sys.exit(2)
+    except OSError as error:
+        print(f"[File Error] {error}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
