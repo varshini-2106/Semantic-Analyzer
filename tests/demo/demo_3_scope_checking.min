@@ -1,0 +1,23 @@
+int projectId = 501;
+float projectBudget = 125000.0;
+
+{
+    int internalTaskCount = 18;
+    bool reviewCompleted = true;
+
+    projectBudget = projectBudget - 5000.0;
+
+    {
+        string internalNote = "Pending review";
+        internalTaskCount = internalTaskCount + 2;
+    }
+
+    // Error: internalNote belongs to the inner block
+    internalNote = "Completed";
+}
+
+// Error: internalTaskCount is no longer visible
+internalTaskCount = 25;
+
+// Error: reviewCompleted is no longer visible
+reviewCompleted = false;

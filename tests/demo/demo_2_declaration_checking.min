@@ -1,0 +1,12 @@
+int departmentId = 12;
+string departmentName = "Engineering";
+float annualBudget = 850000.0;
+
+// Error 1: duplicate declaration in the same scope
+int departmentId = 15;
+
+// Error 2: use of an undeclared variable
+annualBudget = revisedBudget + 5000.0;
+
+// Error 3: another undeclared identifier
+missingAllowance = 2500.0;

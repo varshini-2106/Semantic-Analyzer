@@ -1,0 +1,24 @@
+int attendancePercentage = 82;
+int assignmentScore = 91;
+bool eligibleForExam = true;
+string studentStatus = "Active";
+
+// Error 1: integer used as an if condition
+if (attendancePercentage) {
+    assignmentScore = assignmentScore + 2;
+}
+
+// Error 2: numeric expression used as a while condition
+while (assignmentScore - 80) {
+    assignmentScore = assignmentScore - 1;
+}
+
+// Error 3: string used as a condition
+if (studentStatus) {
+    assignmentScore = 0;
+}
+
+// Valid: Boolean expression
+if (eligibleForExam && assignmentScore >= 50) {
+    assignmentScore = assignmentScore + 1;
+}

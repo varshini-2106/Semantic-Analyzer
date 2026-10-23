@@ -1,0 +1,47 @@
+int employeeId = 1042;
+float monthlySalary = 48500.75;
+bool isPermanent = true;
+string employeeName = "Jack";
+char grade = 'A';
+
+// 1. DECLARATION CHECKING: duplicate declaration
+int employeeId = 2050;
+
+// 2. DECLARATION CHECKING: undeclared variable
+monthlySalary = revisedSalary + 1000.0;
+
+// 3. TYPE CHECKING: incompatible assignment
+employeeId = isPermanent;
+
+// 4. ASSIGNMENT / EXPRESSION VALIDATION
+int adjustedSalary = monthlySalary + isPermanent;
+
+// 5. ASSIGNMENT / EXPRESSION VALIDATION
+string employeeRecord = employeeName + employeeId;
+
+// 6. TYPE CHECKING: char assigned to string
+employeeName = grade;
+
+// 7. CONDITION CHECKING: integer condition
+if (employeeId) {
+    int localReviewCode = 7;
+}
+
+// 8. SCOPE CHECKING: variable declared in the block
+{
+    float internalAllowance = 2500.0;
+    bool auditCompleted = true;
+
+    monthlySalary = monthlySalary + internalAllowance;
+}
+
+// Error: block-local variable is no longer visible
+internalAllowance = 3000.0;
+
+// 9. CONDITION CHECKING: string condition
+while (employeeName) {
+    employeeId = employeeId + 1;
+}
+
+// 10. EXPRESSION VALIDATION: invalid logical operands
+bool eligibilityCheck = employeeId && 7;

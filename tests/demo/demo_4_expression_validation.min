@@ -1,0 +1,19 @@
+int completedTasks = 18;
+bool managerApproved = true;
+string reportTitle = "Quarterly Report";
+char performanceGrade = 'A';
+
+// Error 1: invalid assignment
+completedTasks = managerApproved;
+
+// Error 2: invalid Boolean arithmetic
+int taskDifference = managerApproved + completedTasks;
+
+// Error 3: invalid string concatenation
+string summary = reportTitle + completedTasks;
+
+// Error 4: invalid character arithmetic
+char combinedGrade = 'A' + 'B';
+
+// Error 5: incompatible equality operands
+bool isEligible = completedTasks == reportTitle;

@@ -1,0 +1,17 @@
+int employeeId = 1042;
+float monthlySalary = 48500.75;
+bool isPermanent = true;
+string employeeName = "Jack";
+char grade = 'A';
+
+// Error 1: bool assigned to int
+employeeId = isPermanent;
+
+// Error 2: float assigned to int
+employeeId = monthlySalary;
+
+// Error 3: incompatible expression types
+float adjustedSalary = monthlySalary + isPermanent;
+
+// Error 4: char assigned to string
+employeeName = grade;
