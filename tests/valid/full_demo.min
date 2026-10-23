@@ -1,0 +1,62 @@
+// 1. Variable declarations and data types
+int employeeId = 1042;
+float salary = 48500.75;
+bool isActive = true;
+string employeeName = "Varshini";
+char grade = 'A';
+
+// 2. Assignment validation
+employeeId = 1050;
+salary = employeeId;
+isActive = false;
+employeeName = "Semantic Analyzer";
+grade = 'B';
+
+// 3. Arithmetic expressions
+int a = 10;
+int b = 5;
+int sum = a + b;
+int difference = a - b;
+int product = a * b;
+float quotient = a / b;
+
+// 4. String concatenation
+string firstName = "Mini";
+string lastName = "Lang";
+string fullName = firstName + lastName;
+
+// 5. Comparison and Boolean expressions
+bool isGreater = a > b;
+bool isEqual = a == b;
+bool isEligible = isActive && isGreater;
+bool isValid = isActive || isEqual;
+bool isNotActive = !isActive;
+
+// 6. Conditional statements
+if (isActive) {
+    int taskCount = 10;
+    taskCount = taskCount + 1;
+
+    // 7. Nested scope
+    {
+        float bonus = 2500.50;
+        bool bonusApproved = true;
+        salary = salary + bonus;
+    }
+}
+
+// 8. Another independent block
+{
+    string department = "Engineering";
+    char departmentGrade = 'A';
+    bool departmentActive = true;
+
+    departmentActive = isActive;
+}
+
+// 9. While loop with Boolean condition
+bool continueWork = false;
+while (continueWork) {
+    int iteration = 1;
+    iteration = iteration + 1;
+}
